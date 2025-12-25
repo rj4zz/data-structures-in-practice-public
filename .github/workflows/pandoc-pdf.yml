@@ -56,3 +56,19 @@ jobs:
             -V linkcolor:blue
             -V book=true
             -V classoption=oneside
+            
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-output
+          path: data-structures-book.pdf
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
+          files: data-structures-book.pdf
+          draft: false
+          prerelease: false
+          generate_release_notes: true
