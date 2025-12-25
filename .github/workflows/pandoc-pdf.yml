@@ -16,25 +16,27 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Prepare Files
+      - name: Prepare File List
         id: files
         run: |
-          # 1. Merge all front matter into one temp file (Excluding the manual TOC)
-          # This ensures --include-before-body only receives ONE file
-          ls manuscript/front_matter/*.md 2>/dev/null | grep -v "03_table_of_contents.md" | sort | xargs cat > combined_front.md
+          # 1. Create a single list of all files in the exact order you want
+          # Front Matter -> Chapters -> Appendices -> License
+          # We exclude the manual TOC file.
           
-          # 2. Gather Chapters, Appendices, and License for the main body
-          BODY=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort | tr '\n' ' ')
-          APPS=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort | tr '\n' ' ')
+          FM=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -v "03_table_of_contents.md" | sort)
+          CH=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
+          AP=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
           
-          echo "main_body=$BODY $APPS LICENSE.md" >> $GITHUB_OUTPUT
+          # Combine into a single line with spaces
+          ALL_FILES=$(echo $FM $CH $AP LICENSE.md | tr '\n' ' ')
+          
+          echo "input_list=$ALL_FILES" >> $GITHUB_OUTPUT
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
         with:
           args: >-
-            ${{ steps.files.outputs.main_body }}
-            --include-before-body=combined_front.md
+            ${{ steps.files.outputs.input_list }}
             -o data-structures-book.pdf
             --template=eisvogel
             --toc
@@ -47,19 +49,4 @@ jobs:
             -V linkcolor:blue
             -V book=true
             -V classoption=oneside
-
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf-output
-          path: data-structures-book.pdf
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
-          files: data-structures-book.pdf
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+            --include-before-body=manuscript/front_matter/00_cover.md
