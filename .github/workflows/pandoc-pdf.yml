@@ -16,37 +16,50 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Prepare File List
-        id: files
-        run: |
-          # 1. Create a single list of all files in the exact order you want
-          # Front Matter -> Chapters -> Appendices -> License
-          # We exclude the manual TOC file.
-          
-          FM=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -v "03_table_of_contents.md" | sort)
-          CH=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
-          AP=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
-          
-          # Combine into a single line with spaces
-          ALL_FILES=$(echo $FM $CH $AP LICENSE.md | tr '\n' ' ')
-          
-          echo "input_list=$ALL_FILES" >> $GITHUB_OUTPUT
-
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
         with:
+          # Use bash to avoid the argument truncation/escaping bug
+          entrypoint: /bin/bash
           args: >-
-            ${{ steps.files.outputs.input_list }}
-            -o data-structures-book.pdf
-            --template=eisvogel
-            --toc
-            --toc-depth=2
-            --top-level-division=chapter
-            --number-sections
-            --highlight-style=pygments
-            --pdf-engine=tectonic
-            -V geometry:margin=1in
-            -V linkcolor:blue
-            -V book=true
+            -c "
+            # 1. Create a dummy file to trigger the TOC exactly where we want it
+            echo '\newpage \tableofcontents \newpage' > toc_trigger.tex;
+
+            # 2. Build the file list in the specific order you want
+            # Order: Cover -> Copyright -> Preface -> [TOC] -> Chapters -> Appendices -> License
+            FM_FILES=\$(ls manuscript/front_matter/*.md 2>/dev/null | grep -v '03_table_of_contents.md' | sort);
+            CH_FILES=\$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort);
+            AP_FILES=\$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort);
+
+            # 3. Run Pandoc
+            # Note: We do NOT use --toc here because we are using toc_trigger.tex instead
+            pandoc \$FM_FILES toc_trigger.tex \$CH_FILES \$AP_FILES LICENSE.md \
+            -o data-structures-book.pdf \
+            --template=eisvogel \
+            --toc-depth=2 \
+            --top-level-division=chapter \
+            --number-sections \
+            --highlight-style=pygments \
+            --pdf-engine=tectonic \
+            -V geometry:margin=1in \
+            -V linkcolor:blue \
+            -V book=true \
             -V classoption=oneside
-            --include-before-body=manuscript/front_matter/00_cover.md
+            "
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-output
+          path: data-structures-book.pdf
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
+          files: data-structures-book.pdf
+          draft: false
+          prerelease: false
+          generate_release_notes: true
