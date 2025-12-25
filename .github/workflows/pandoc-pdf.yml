@@ -16,19 +16,26 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
+      - name: Generate input file list
+        id: files
+        run: |
+          echo "inputs<<EOF" >> $GITHUB_OUTPUT
+          echo "LICENSE.md manuscript/front_matter/02_preface.md manuscript/chapters/chapter*.md manuscript/appendices/appendix[A-F].md" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
         with:
           args: >-
-            LICENSE.md manuscript/front_matter/*.md manuscript/chapters/chapter*.md manuscript/appendices/appendix_*.md
+            ${{ steps.files.outputs.inputs }}
             -o data-structures-book.pdf
             --template=eisvogel
             --toc
             --toc-depth=3
             --top-level-division=chapter
             --number-sections
-            --listings
-            --highlight-style=pygments
+            --syntax-highlighting=idiomatic
+            --syntax-highlighting=pygments
             --pdf-engine=xelatex
             -V geometry:margin=1in
             -V 'linkcolor:blue'
