@@ -1,13 +1,13 @@
 name: Generate PDF from Markdown and Create Release
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for creating releases and tags
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,16 +19,18 @@ jobs:
       - name: Generate expanded input file list
         id: files
         run: |
-          # Explicitly order the book components
+          # Gather files and ensure they are space-separated or newline-safe
           FRONT_MATTER=$(ls manuscript/front_matter/*.md 2>/dev/null | sort)
           CHAPTERS=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
           APPENDICES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
           
-          # Combine into a single string for Pandoc
-          FILES="$FRONT_MATTER $CHAPTERS $APPENDICES LICENSE.md"
-          
-          echo "inputs=$FILES" >> $GITHUB_OUTPUT
-          echo "Final file order: $FILES"
+          # Use EOF to handle the multiline string correctly
+          echo "inputs<<EOF" >> $GITHUB_OUTPUT
+          echo "$FRONT_MATTER" >> $GITHUB_OUTPUT
+          echo "$CHAPTERS" >> $GITHUB_OUTPUT
+          echo "$APPENDICES" >> $GITHUB_OUTPUT
+          echo "LICENSE.md" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
