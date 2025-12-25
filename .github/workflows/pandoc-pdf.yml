@@ -16,30 +16,35 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Prepare LaTeX Triggers and File List
+      - name: Prepare File List and Numbering Triggers
         id: files
         run: |
-          # 1. Create the Roman numbering trigger
+          # 1. Create a LaTeX trigger for the TOC and Numbering switch
+          # \pagenumbering{roman} starts i, ii, iii...
+          # \pagenumbering{arabic} starts 1, 2, 3...
           echo '\pagenumbering{roman}' > start_roman.tex
-          
-          # 2. Create the TOC and Arabic numbering trigger
           echo '\newpage \tableofcontents \newpage \pagenumbering{arabic} \setcounter{page}{1}' > start_chapters.tex
 
-          # 3. Create a text file containing the list of all Markdown files (one per line)
-          # This avoids the "unexpected Tok" error and argument length limits.
+          # 2. Organize the files
+          # We place the cover first, then the roman trigger, then the preface, then the TOC/Arabic trigger
+          COVER="manuscript/front_matter/00_cover.md"
+          # Get other front matter except cover and manual TOC
           FM_REST=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -vE "00_cover.md|03_table_of_contents.md" | sort)
           CH_FILES=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
           AP_FILES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
           
-          printf "%s\n" $FM_REST $CH_FILES $AP_FILES LICENSE.md > file_list.txt
+          # Combine everything into one space-separated string
+          # Order: Cover -> Roman Start -> Rest of FM -> TOC/Arabic Start -> Body
+          ALL_FILES="$COVER start_roman.tex $FM_REST start_chapters.tex $CH_FILES $AP_FILES LICENSE.md"
+          CLEAN_FILES=$(echo $ALL_FILES | xargs)
+          
+          echo "inputs=$CLEAN_FILES" >> $GITHUB_OUTPUT
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
         with:
           args: >-
-            --file-scope
-            --include-before-body=start_roman.tex
-            --include-before-body=start_chapters.tex
+            ${{ steps.files.outputs.inputs }}
             -o data-structures-book.pdf
             --template=eisvogel
             --toc-depth=2
@@ -51,8 +56,19 @@ jobs:
             -V linkcolor:blue
             -V book=true
             -V classoption=oneside
-            -V title="Data Structures in Practice"
-            -V subtitle="A Hardware-Aware Approach for System Software Engineers"
-            -V author="Danny Jiang"
-            -V titlepage=true
-            $(cat file_list.txt)
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-output
+          path: data-structures-book.pdf
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
+          files: data-structures-book.pdf
+          draft: false
+          prerelease: false
+          generate_release_notes: true
