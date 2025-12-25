@@ -19,23 +19,20 @@ jobs:
       - name: Prepare File List and Numbering Triggers
         id: files
         run: |
-          # 1. Create a LaTeX trigger for the TOC and Numbering switch
-          # \pagenumbering{roman} starts i, ii, iii...
-          # \pagenumbering{arabic} starts 1, 2, 3...
+          # 1. Start with Roman numerals for Front Matter (Preface, etc.)
           echo '\pagenumbering{roman}' > start_roman.tex
+          
+          # 2. Place TOC and then switch to Arabic numerals for Chapters
+          # \setcounter{page}{1} ensures Chapter 1 starts at page 1
           echo '\newpage \tableofcontents \newpage \pagenumbering{arabic} \setcounter{page}{1}' > start_chapters.tex
 
-          # 2. Organize the files
-          # We place the cover first, then the roman trigger, then the preface, then the TOC/Arabic trigger
-          COVER="manuscript/front_matter/00_cover.md"
-          # Get other front matter except cover and manual TOC
+          # 3. Organize the files (Skipping 00_cover.md as we are using auto-title-page)
           FM_REST=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -vE "00_cover.md|03_table_of_contents.md" | sort)
           CH_FILES=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
           AP_FILES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
           
-          # Combine everything into one space-separated string
-          # Order: Cover -> Roman Start -> Rest of FM -> TOC/Arabic Start -> Body
-          ALL_FILES="$COVER start_roman.tex $FM_REST start_chapters.tex $CH_FILES $AP_FILES LICENSE.md"
+          # Sequence: Roman Trigger -> Preface -> TOC/Arabic Trigger -> Body
+          ALL_FILES="start_roman.tex $FM_REST start_chapters.tex $CH_FILES $AP_FILES LICENSE.md"
           CLEAN_FILES=$(echo $ALL_FILES | xargs)
           
           echo "inputs=$CLEAN_FILES" >> $GITHUB_OUTPUT
@@ -56,7 +53,15 @@ jobs:
             -V linkcolor:blue
             -V book=true
             -V classoption=oneside
-            
+            -V title="Data Structures in Practice"
+            -V subtitle="A Hardware-Aware Approach for System Software Engineers"
+            -V author="Danny Jiang"
+            -V titlepage=true
+            -V titlepage-color="FFFFFF"
+            -V titlepage-text-color="000000"
+            -V titlepage-rule-color="360049"
+            -V titlepage-rule-height=2
+
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
         with:
