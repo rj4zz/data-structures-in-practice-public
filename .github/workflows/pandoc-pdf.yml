@@ -16,24 +16,17 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Prepare File List and Numbering Triggers
+      - name: Prepare File List and Order
         id: files
         run: |
-          # 1. Create a LaTeX trigger for the TOC and Numbering switch
-          # \pagenumbering{roman} starts i, ii, iii...
-          # \pagenumbering{arabic} starts 1, 2, 3...
+          # LaTeX trigger for the TOC and Numbering switch
           echo '\pagenumbering{roman}' > start_roman.tex
           echo '\newpage \tableofcontents \newpage \pagenumbering{arabic} \setcounter{page}{1}' > start_chapters.tex
 
-          # 2. Organize the files
-          # We place the cover first, then the roman trigger, then the preface, then the TOC/Arabic trigger
-          COVER="manuscript/front_matter/00_cover.md"
-          # Get other front matter except cover and manual TOC
           FM_REST=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -vE "00_cover.md|03_table_of_contents.md" | sort)
           CH_FILES=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
           AP_FILES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
           
-          # Combine everything into one space-separated string
           # Order: Cover -> Roman Start -> Rest of FM -> TOC/Arabic Start -> Body
           ALL_FILES="$COVER start_roman.tex $FM_REST start_chapters.tex $CH_FILES $AP_FILES LICENSE.md"
           CLEAN_FILES=$(echo $ALL_FILES | xargs)
