@@ -16,32 +16,30 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Prepare File List and Numbering Triggers
+      - name: Prepare LaTeX Triggers and File List
         id: files
         run: |
-          # 1. Start with Roman numerals for Front Matter (Preface, etc.)
+          # 1. Create the Roman numbering trigger
           echo '\pagenumbering{roman}' > start_roman.tex
           
-          # 2. Place TOC and then switch to Arabic numerals for Chapters
-          # \setcounter{page}{1} ensures Chapter 1 starts at page 1
+          # 2. Create the TOC and Arabic numbering trigger
           echo '\newpage \tableofcontents \newpage \pagenumbering{arabic} \setcounter{page}{1}' > start_chapters.tex
 
-          # 3. Organize the files (Skipping 00_cover.md as we are using auto-title-page)
+          # 3. Create a text file containing the list of all Markdown files (one per line)
+          # This avoids the "unexpected Tok" error and argument length limits.
           FM_REST=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -vE "00_cover.md|03_table_of_contents.md" | sort)
           CH_FILES=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
           AP_FILES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
           
-          # Sequence: Roman Trigger -> Preface -> TOC/Arabic Trigger -> Body
-          ALL_FILES="start_roman.tex $FM_REST start_chapters.tex $CH_FILES $AP_FILES LICENSE.md"
-          CLEAN_FILES=$(echo $ALL_FILES | xargs)
-          
-          echo "inputs=$CLEAN_FILES" >> $GITHUB_OUTPUT
+          printf "%s\n" $FM_REST $CH_FILES $AP_FILES LICENSE.md > file_list.txt
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
         with:
           args: >-
-            ${{ steps.files.outputs.inputs }}
+            --file-scope
+            --include-before-body=start_roman.tex
+            --include-before-body=start_chapters.tex
             -o data-structures-book.pdf
             --template=eisvogel
             --toc-depth=2
@@ -57,23 +55,4 @@ jobs:
             -V subtitle="A Hardware-Aware Approach for System Software Engineers"
             -V author="Danny Jiang"
             -V titlepage=true
-            -V titlepage-color="FFFFFF"
-            -V titlepage-text-color="000000"
-            -V titlepage-rule-color="360049"
-            -V titlepage-rule-height=2
-
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf-output
-          path: data-structures-book.pdf
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
-          files: data-structures-book.pdf
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+            $(cat file_list.txt)
