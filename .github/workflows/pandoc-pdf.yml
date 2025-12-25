@@ -19,9 +19,16 @@ jobs:
       - name: Generate expanded input file list
         id: files
         run: |
-          FILES=$(ls LICENSE.md manuscript/front_matter/*.md manuscript/chapters/chapter*.md manuscript/appendices/appendix_*.md 2>/dev/null | tr '\n' ' ')
+          # Explicitly order the book components
+          FRONT_MATTER=$(ls manuscript/front_matter/*.md 2>/dev/null | sort)
+          CHAPTERS=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
+          APPENDICES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
+          
+          # Combine into a single string for Pandoc
+          FILES="$FRONT_MATTER $CHAPTERS $APPENDICES LICENSE.md"
+          
           echo "inputs=$FILES" >> $GITHUB_OUTPUT
-          echo "Generated file list: $FILES"
+          echo "Final file order: $FILES"
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
@@ -34,11 +41,12 @@ jobs:
             --toc-depth=3
             --top-level-division=chapter
             --number-sections
-            --syntax-highlighting=idiomatic
-            --syntax-highlighting=pygments
-            --pdf-engine=xelatex
+            --highlight-style=pygments
+            --pdf-engine=tectonic
             -V geometry:margin=1in
-            -V 'linkcolor:blue'
+            -V linkcolor:blue
+            -V book=true
+            -V classoption=oneside
 
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
