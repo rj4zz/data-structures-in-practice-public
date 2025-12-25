@@ -16,31 +16,31 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Generate expanded input file list
+      - name: Prepare File Lists
         id: files
         run: |
-          # Gather files and use 'tr' to replace newlines with spaces
-          FRONT_MATTER=$(ls manuscript/front_matter/*.md 2>/dev/null | sort | tr '\n' ' ')
-          CHAPTERS=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort | tr '\n' ' ')
+          # 1. Collect Front Matter files to be placed BEFORE the TOC
+          # We exclude the manual TOC file entirely.
+          BEFORE=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -v "03_table_of_contents.md" | sort | tr '\n' ' ')
+          
+          # 2. Collect Chapter and Appendix files to be placed AFTER the TOC
+          BODY=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort | tr '\n' ' ')
           APPENDICES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort | tr '\n' ' ')
           
-          # Combine them into one single-line string
-          ALL_FILES="$FRONT_MATTER $CHAPTERS $APPENDICES LICENSE.md"
-          
-          # Clean up any double spaces
-          CLEAN_FILES=$(echo $ALL_FILES | xargs)
-          
-          echo "inputs=$CLEAN_FILES" >> $GITHUB_OUTPUT
+          # 3. Format for GitHub Output
+          echo "before_body=$BEFORE" >> $GITHUB_OUTPUT
+          echo "main_body=$BODY $APPENDICES LICENSE.md" >> $GITHUB_OUTPUT
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
         with:
           args: >-
-            ${{ steps.files.outputs.inputs }}
+            ${{ steps.files.outputs.main_body }}
+            --include-before-body=${{ steps.files.outputs.before_body }}
             -o data-structures-book.pdf
             --template=eisvogel
             --toc
-            --toc-depth=3
+            --toc-depth=2
             --top-level-division=chapter
             --number-sections
             --highlight-style=pygments
@@ -49,19 +49,3 @@ jobs:
             -V linkcolor:blue
             -V book=true
             -V classoption=oneside
-
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf-output
-          path: data-structures-book.pdf
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
-          files: data-structures-book.pdf
-          draft: false
-          prerelease: false
-          generate_release_notes: true
