@@ -1,0 +1,50 @@
+name: Generate PDF from Markdown and Create Release
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases and tags
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate timestamp tag
+        id: tag
+        run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Convert Markdown to PDF
+        uses: docker://pandoc/extra:latest
+        with:
+          args: >-
+            LICENSE.md manuscript/front_matter/*.md manuscript/chapters/chapter*.md manuscript/appendices/appendix_*.md
+            -o data-structures-book.pdf
+            --template=eisvogel
+            --toc
+            --toc-depth=3
+            --top-level-division=chapter
+            --number-sections
+            --listings
+            --highlight-style=pygments
+            --pdf-engine=xelatex
+            -V geometry:margin=1in
+            -V 'linkcolor:blue'
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-output
+          path: data-structures-book.pdf
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Data Structures in Practice - ${{ steps.tag.outputs.tag }}
+          files: data-structures-book.pdf
+          draft: false
+          prerelease: false
+          generate_release_notes: true
