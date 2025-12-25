@@ -16,12 +16,12 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Generate input file list
+      - name: Generate expanded input file list
         id: files
         run: |
-          echo "inputs<<EOF" >> $GITHUB_OUTPUT
-          echo "LICENSE.md manuscript/front_matter/02_preface.md manuscript/chapters/chapter*.md manuscript/appendices/appendix[A-F].md" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          FILES=$(ls LICENSE.md manuscript/front_matter/*.md manuscript/chapters/chapter*.md manuscript/appendices/appendix_*.md 2>/dev/null | tr '\n' ' ')
+          echo "inputs=$FILES" >> $GITHUB_OUTPUT
+          echo "Generated file list: $FILES"
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
