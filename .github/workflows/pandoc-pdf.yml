@@ -16,37 +16,50 @@ jobs:
         id: tag
         run: echo "tag=snapshot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Convert Markdown to PDF
+      - name: Prepare File Lists
+        id: files
+        run: |
+          # 1. Front matter only (Exclude manual TOC)
+          FRONT=$(ls manuscript/front_matter/*.md 2>/dev/null | grep -v "03_table_of_contents.md" | sort | tr '\n' ' ')
+          echo "front_inputs=$FRONT" >> $GITHUB_OUTPUT
+
+          # 2. Main content only
+          CHAPTERS=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort | tr '\n' ' ')
+          APPENDICES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort | tr '\n' ' ')
+          echo "main_inputs=$CHAPTERS $APPENDICES LICENSE.md" >> $GITHUB_OUTPUT
+
+      - name: Generate Front Matter PDF
         uses: docker://pandoc/extra:latest
         with:
-          # Use bash to avoid the argument truncation/escaping bug
-          entrypoint: /bin/bash
           args: >-
-            -c "
-            # 1. Create a dummy file to trigger the TOC exactly where we want it
-            echo '\newpage \tableofcontents \newpage' > toc_trigger.tex;
-
-            # 2. Build the file list in the specific order you want
-            # Order: Cover -> Copyright -> Preface -> [TOC] -> Chapters -> Appendices -> License
-            FM_FILES=\$(ls manuscript/front_matter/*.md 2>/dev/null | grep -v '03_table_of_contents.md' | sort);
-            CH_FILES=\$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort);
-            AP_FILES=\$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort);
-
-            # 3. Run Pandoc
-            # Note: We do NOT use --toc here because we are using toc_trigger.tex instead
-            pandoc \$FM_FILES toc_trigger.tex \$CH_FILES \$AP_FILES LICENSE.md \
-            -o data-structures-book.pdf \
-            --template=eisvogel \
-            --toc-depth=2 \
-            --top-level-division=chapter \
-            --number-sections \
-            --highlight-style=pygments \
-            --pdf-engine=tectonic \
-            -V geometry:margin=1in \
-            -V linkcolor:blue \
-            -V book=true \
+            ${{ steps.files.outputs.front_inputs }}
+            -o front.pdf
+            --template=eisvogel
+            --top-level-division=chapter
+            --pdf-engine=tectonic
+            -V book=true
             -V classoption=oneside
-            "
+
+      - name: Generate Main Content PDF
+        uses: docker://pandoc/extra:latest
+        with:
+          args: >-
+            ${{ steps.files.outputs.main_inputs }}
+            -o main.pdf
+            --template=eisvogel
+            --toc
+            --toc-depth=2
+            --top-level-division=chapter
+            --number-sections
+            --highlight-style=pygments
+            --pdf-engine=tectonic
+            -V book=true
+            -V classoption=oneside
+
+      - name: Merge PDFs
+        run: |
+          sudo apt-get update && sudo apt-get install -y poppler-utils
+          pdfunite front.pdf main.pdf data-structures-book.pdf
 
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
