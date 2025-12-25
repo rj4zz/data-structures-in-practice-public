@@ -19,18 +19,18 @@ jobs:
       - name: Generate expanded input file list
         id: files
         run: |
-          # Gather files and ensure they are space-separated or newline-safe
-          FRONT_MATTER=$(ls manuscript/front_matter/*.md 2>/dev/null | sort)
-          CHAPTERS=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort)
-          APPENDICES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort)
+          # Gather files and use 'tr' to replace newlines with spaces
+          FRONT_MATTER=$(ls manuscript/front_matter/*.md 2>/dev/null | sort | tr '\n' ' ')
+          CHAPTERS=$(ls manuscript/chapters/chapter*.md 2>/dev/null | sort | tr '\n' ' ')
+          APPENDICES=$(ls manuscript/appendices/appendix_*.md 2>/dev/null | sort | tr '\n' ' ')
           
-          # Use EOF to handle the multiline string correctly
-          echo "inputs<<EOF" >> $GITHUB_OUTPUT
-          echo "$FRONT_MATTER" >> $GITHUB_OUTPUT
-          echo "$CHAPTERS" >> $GITHUB_OUTPUT
-          echo "$APPENDICES" >> $GITHUB_OUTPUT
-          echo "LICENSE.md" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Combine them into one single-line string
+          ALL_FILES="$FRONT_MATTER $CHAPTERS $APPENDICES LICENSE.md"
+          
+          # Clean up any double spaces
+          CLEAN_FILES=$(echo $ALL_FILES | xargs)
+          
+          echo "inputs=$CLEAN_FILES" >> $GITHUB_OUTPUT
 
       - name: Convert Markdown to PDF
         uses: docker://pandoc/extra:latest
